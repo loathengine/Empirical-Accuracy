@@ -1,1 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Empirical Accuracy Web App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Google Fonts for Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for the app */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        canvas {
+            background-color: #eee;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen font-inter bg-gray-100 text-gray-800">
+
+    <!-- Sidebar -->
+    <div class="w-full md:w-1/3 p-4 bg-gray-900 text-white shadow-lg flex flex-col rounded-b-lg md:rounded-r-lg md:rounded-bl-none">
+        <h1 class="text-2xl font-bold mb-6 text-center text-blue-300">Empirical Accuracy</h1>
+
+        <div class="mb-6 space-y-3">
+            <label for="imageUpload" class="block text-sm font-medium text-gray-300 mb-1">
+                Load Image
+            </label>
+            <div class="flex items-center space-x-2">
+                <input
+                    type="file"
+                    id="imageUpload"
+                    accept="image/*"
+                    class="block w-full text-sm text-gray-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 transition duration-200 cursor-pointer rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+            </div>
+        </div>
+
+        <div class="mb-6 space-y-3">
+            <h2 class="text-lg font-semibold text-blue-200 mb-2">Tools</h2>
+
+            <button id="toggleUnitsBtn"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center space-x-2 shadow-md transition duration-200"
+            >
+                <i class="fa-solid fa-ruler"></i>
+                <span id="unitToggleText">Toggle Units: Imperial</span>
+            </button>
+
+            <button id="defineScaleBtn"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center space-x-2 shadow-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled
+            >
+                <i class="fa-solid fa-grip"></i>
+                <span>Define Scale (1 inch)</span>
+            </button>
+
+            <button id="createNewGroupBtn"
+                class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center space-x-2 shadow-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled
+            >
+                <i class="fa-solid fa-plus-circle"></i>
+                <span>Create New Group</span>
+            </button>
+
+            <div id="groupSelectContainer" class="mb-3 hidden">
+                <label for="groupSelect" class="block text-sm font-medium text-gray-300 mb-1">
+                    Active Group:
+                </label>
+                <select id="groupSelect"
+                    class="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-white"
+                >
+                    <option value="">Select a Group</option>
+                </select>
+            </div>
+
+            <button id="markAimPointBtn"
+                class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center space-x-2 shadow-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled
+            >
+                <i class="fa-solid fa-crosshairs"></i>
+                <span>Mark Point of Aim</span>
+            </button>
+
+            <button id="markImpactPointsBtn"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center space-x-2 shadow-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled
+            >
+                <i class="fa-solid fa-bullseye"></i>
+                <span>Mark Points of Impact</span>
+            </button>
+            
+            <!-- Moved removeSelectedGroupBtn here -->
+            <button id="removeSelectedGroupBtn"
+                class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center space-x-2 shadow-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed mt-3"
+                disabled
+            >
+                <i class="fa-solid fa-minus-circle"></i>
+                <span>Remove Selected Group</span>
+            </button>
+        </div>
+
+        <div class="mb-6 p-3 bg-gray-800 rounded-lg shadow-inner">
+            <h2 class="text-lg font-semibold text-blue-200 mb-2">Current Status</h2>
+            <p id="messageDisplay" class="text-sm text-gray-300"></p>
+            <p id="scaleDisplay" class="text-sm text-gray-300 mt-2 hidden"></p>
+        </div>
+
+        <div class="flex-grow p-3 bg-gray-800 rounded-lg shadow-inner overflow-auto">
+            <h2 class="text-lg font-semibold text-blue-200 mb-2">Group Statistics</h2>
+            <pre id="statsOutput" class="text-sm text-gray-300 whitespace-pre-wrap">No points of impact to calculate statistics.</pre>
+        </div>
+    </div>
+
+    <!-- Canvas Area -->
+    <div class="flex-grow flex items-center justify-center p-4 bg-gray-200 relative overflow-hidden rounded-lg md:rounded-l-lg md:rounded-tr-none">
+        <div id="imagePlaceholder" class="text-center text-gray-500 absolute inset-0 flex flex-col items-center justify-center">
+            <i class="fa-solid fa-image text-6xl mb-4"></i>
+            <p class="text-xl">Load an image to get started!</p>
+        </div>
+        <img id="hiddenImage" src="" alt="Loaded" class="hidden"/>
+        <canvas id="analysisCanvas" class="border-2 border-gray-400 shadow-xl rounded-lg w-full h-full cursor-crosshair hidden"></canvas>
+    </div>
+
+    <script>
+        // DOM Elements
+        const imageUpload = document.getElementById('imageUpload');
+        const toggleUnitsBtn = document.getElementById('toggleUnitsBtn');
+        const unitToggleText = document.getElementById('unitToggleText');
+        const defineScaleBtn = document.getElementById('defineScaleBtn');
+        const createNewGroupBtn = document.getElementById('createNewGroupBtn');
+        const removeSelectedGroupBtn = document.getElementById('removeSelectedGroupBtn');
+        const groupSelectContainer = document.getElementById('groupSelectContainer');
+        const groupSelect = document.getElementById('groupSelect');
+        const markAimPointBtn = document.getElementById('markAimPointBtn');
+        const markImpactPointsBtn = document.getElementById('markImpactPointsBtn');
+        const messageDisplay = document.getElementById('messageDisplay');
+        const scaleDisplay = document.getElementById('scaleDisplay');
+        const statsOutput = document.getElementById('statsOutput');
+        const hiddenImage = document.getElementById('hiddenImage');
+        const analysisCanvas = document.getElementById('analysisCanvas');
+        const imagePlaceholder = document.getElementById('imagePlaceholder');
+        const ctx = analysisCanvas.getContext('2d');
+
+        // State variables
+        let imageSrc = null;
+        let unit = 'imperial'; // 'imperial' or 'metric'
+        let pixelsPerUnit = null;
+        let scalePoints = []; // [{x, y}, {x, y}]
+        let currentTool = 'none'; // 'none', 'scale_point1', 'scale_point2', 'aim_point', 'impact_point'
+        let groups = []; // [{ id, name, pointOfAim: {x,y}, pointsOfImpact: [{x,y}, ...] }]
+        let activeGroupId = null;
+
+        // Helper to display messages to the user
+        function showMessage(msg) {
+            messageDisplay.textContent = msg;
+        }
+
+        // Function to render or re-render the group select dropdown
+        function renderGroupSelect() {
+            groupSelect.innerHTML = '<option value="">Select a Group</option>'; // Clear existing options
+            groups.forEach(group => {
+                const option = document.createElement('option');
+                option.value = group.id;
+                option.textContent = group.name;
+                groupSelect.appendChild(option);
+            });
+            if (activeGroupId) {
+                groupSelect.value = activeGroupId; // Set the active group in the dropdown
+            } else if (groups.length > 0) {
+                activeGroupId = groups[0].id; // Automatically select the first group if none active
+                groupSelect.value = activeGroupId;
+            } else {
+                activeGroupId = null; // No groups, explicitly set activeGroupId to null
+                groupSelect.value = ''; // No groups, select the default option
+            }
+        }
+
+        // Function to enable/disable buttons based on state
+        function updateButtonStates() {
+            const isImageLoaded = imageSrc !== null;
+            const hasActiveGroup = activeGroupId !== null;
+            const isScaleDefined = pixelsPerUnit !== null;
+            const hasGroups = groups.length > 0;
+
+            defineScaleBtn.disabled = !isImageLoaded;
+            createNewGroupBtn.disabled = !isImageLoaded;
+            markAimPointBtn.disabled = !isImageLoaded || !hasActiveGroup || !isScaleDefined;
+            markImpactPointsBtn.disabled = !isImageLoaded || !hasActiveGroup || !isScaleDefined;
+            removeSelectedGroupBtn.disabled = !hasActiveGroup || !hasGroups;
+
+            if (hasGroups) {
+                groupSelectContainer.classList.remove('hidden');
+            } else {
+                groupSelectContainer.classList.add('hidden');
+            }
+
+            if (isScaleDefined) {
+                const scaleValue = unit === 'imperial' ? 1 : 10;
+                const scaleUnitName = unit === 'imperial' ? 'inch' : 'mm';
+                scaleDisplay.textContent = `Current Scale: ${scaleValue} ${scaleUnitName} = ${pixelsPerUnit.toFixed(2)} pixels`;
+                scaleDisplay.classList.remove('hidden');
+            } else {
+                scaleDisplay.classList.add('hidden');
+            }
+
+            // Update button text for active tool
+            const defineScaleSpan = defineScaleBtn.querySelector('span');
+            if (defineScaleSpan) {
+                defineScaleSpan.textContent = `Define Scale (${unit === 'imperial' ? '1 inch' : '10 mm'})` + (currentTool === 'scale_point1' ? ' (Click 1st Pt)' : currentTool === 'scale_point2' ? ' (Click 2nd Pt)' : '');
+            }
+
+            const markAimPointSpan = markAimPointBtn.querySelector('span');
+            if (markAimPointSpan) {
+                markAimPointSpan.textContent = 'Mark Point of Aim' + (currentTool === 'aim_point' ? ' (Click on Image)' : '');
+            }
+
+            const markImpactPointsSpan = markImpactPointsBtn.querySelector('span');
+            if (markImpactPointsSpan) {
+                markImpactPointsSpan.textContent = 'Mark Points of Impact' + (currentTool === 'impact_point' ? ' (Click on Image, Multiple allowed)' : '');
+            }
+        }
+
+        // Draw visuals on canvas
+        function drawVisuals() {
+            // Calculate scale factor for text based on rendered canvas size vs intrinsic resolution
+            const renderedWidth = analysisCanvas.clientWidth;
+            const intrinsicWidth = analysisCanvas.width;
+            const scaleFactor = intrinsicWidth / renderedWidth;
+
+            // Base font sizes for desired appearance on screen
+            const baseScaleFontSize = 12;
+            const basePOAFontSize = 12;
+            const basePOIFontSize = 10;
+
+            scalePoints.forEach((p, index) => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = index === 0 ? 'yellow' : 'cyan';
+                ctx.fill();
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                // Apply scaling factor to font size
+                ctx.font = `${baseScaleFontSize * scaleFactor}px Inter, Arial`;
+                ctx.fillStyle = 'black';
+                ctx.fillText(`Scale ${index + 1}`, p.x + 8, p.y - 8);
+            });
+
+            groups.forEach(group => {
+                if (group.pointOfAim) {
+                    ctx.beginPath();
+                    ctx.arc(group.pointOfAim.x, group.pointOfAim.y, 6, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'red';
+                    ctx.fill();
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    // Apply scaling factor to font size
+                    ctx.font = `${basePOAFontSize * scaleFactor}px Inter, Arial`;
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(`POA (${group.name})`, group.pointOfAim.x + 8, group.pointOfAim.y - 8);
+                }
+
+                group.pointsOfImpact.forEach((p, index) => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'blue';
+                    ctx.fill();
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    // Apply scaling factor to font size
+                    ctx.font = `${basePOIFontSize * scaleFactor}px Inter, Arial`;
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(`${group.name} POI ${index + 1}`, p.x + 6, p.y - 6);
+                });
+            });
+        }
+
+        // Draw image and all elements on canvas
+        function drawImageOnCanvas() {
+            if (ctx && imageSrc && hiddenImage) {
+                const img = hiddenImage;
+                if (img.complete) {
+                    ctx.clearRect(0, 0, analysisCanvas.width, analysisCanvas.height);
+                    ctx.drawImage(img, 0, 0, analysisCanvas.width, analysisCanvas.height);
+                    drawVisuals();
+                } else {
+                    img.onload = () => {
+                        ctx.clearRect(0, 0, analysisCanvas.width, analysisCanvas.height);
+                        ctx.drawImage(img, 0, 0, analysisCanvas.width, analysisCanvas.height);
+                        drawVisuals();
+                    };
+                }
+            }
+        }
+
+        // Event Listeners
+        imageUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imageSrc = e.target.result;
+                    pixelsPerUnit = null;
+                    scalePoints = [];
+                    groups = [];
+                    activeGroupId = null;
+                    currentTool = 'none';
+                    hiddenImage.src = imageSrc;
+                    hiddenImage.onload = () => {
+                        // Set canvas dimensions to natural image size for high resolution drawing
+                        analysisCanvas.width = hiddenImage.naturalWidth;
+                        analysisCanvas.height = hiddenImage.naturalHeight;
+                        imagePlaceholder.classList.add('hidden');
+                        analysisCanvas.classList.remove('hidden');
+                        drawImageOnCanvas();
+                        showMessage('Image loaded successfully. Now, define the scale.');
+                        updateButtonStates();
+                        renderGroupSelect(); // Initial rendering of group select
+                        updateStatistics();
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        toggleUnitsBtn.addEventListener('click', () => {
+            unit = unit === 'imperial' ? 'metric' : 'imperial';
+            unitToggleText.textContent = `Toggle Units: ${unit === 'imperial' ? 'Imperial' : 'Metric'}`;
+            updateButtonStates();
+            updateStatistics();
+        });
+
+        defineScaleBtn.addEventListener('click', () => {
+            if (!imageSrc) {
+                showMessage('Please load an image first.');
+                return;
+            }
+            scalePoints = [];
+            currentTool = 'scale_point1';
+            showMessage('Click the first point on the image to define your scale (e.g., the ends of a known distance).');
+            updateButtonStates();
+        });
+
+        createNewGroupBtn.addEventListener('click', () => {
+            const newGroupId = `group-${groups.length + 1}`;
+            const newGroup = {
+                id: newGroupId,
+                name: `Group ${groups.length + 1}`,
+                pointOfAim: null,
+                pointsOfImpact: []
+            };
+            groups.push(newGroup);
+            activeGroupId = newGroupId;
+            
+            renderGroupSelect(); // Call the new function to update the dropdown
+
+            showMessage(`New group "${newGroup.name}" created and selected.`);
+            currentTool = 'none';
+            drawImageOnCanvas();
+            updateButtonStates();
+            updateStatistics();
+        });
+
+        removeSelectedGroupBtn.addEventListener('click', () => {
+            if (!activeGroupId) {
+                showMessage('No group selected to remove.');
+                return;
+            }
+
+            const groupToRemoveIndex = groups.findIndex(g => g.id === activeGroupId);
+            if (groupToRemoveIndex !== -1) {
+                const groupName = groups[groupToRemoveIndex].name;
+                groups.splice(groupToRemoveIndex, 1);
+                
+                // After removing, ensure activeGroupId is set correctly for the remaining groups
+                if (groups.length > 0) {
+                    activeGroupId = groups[0].id;
+                } else {
+                    activeGroupId = null; // No groups left
+                }
+                renderGroupSelect(); // Call the new function to update the dropdown
+
+                showMessage(`Group "${groupName}" removed successfully.`);
+                currentTool = 'none';
+                drawImageOnCanvas();
+                updateButtonStates();
+                updateStatistics();
+            }
+        });
+
+        groupSelect.addEventListener('change', (event) => {
+            activeGroupId = event.target.value;
+            showMessage(`Active group set to: ${groups.find(g => g.id === activeGroupId)?.name}`);
+            currentTool = 'none'; // Reset tool when group changes
+            drawImageOnCanvas();
+            updateButtonStates();
+        });
+
+        markAimPointBtn.addEventListener('click', () => {
+            if (!imageSrc) { showMessage('Please load an image first.'); return; }
+            if (!activeGroupId) { showMessage('Please create or select a group first.'); return; }
+            currentTool = 'aim_point';
+            showMessage('Click on the image to mark the Point of Aim for the current group.');
+            updateButtonStates();
+        });
+
+        markImpactPointsBtn.addEventListener('click', () => {
+            if (!imageSrc) { showMessage('Please load an image first.'); return; }
+            if (!activeGroupId) { showMessage('Please create or select a group first.'); return; }
+            currentTool = 'impact_point';
+            showMessage('Click on the image to mark Points of Impact. Click on another tool button when done.');
+            updateButtonStates();
+        });
+
+        analysisCanvas.addEventListener('click', (event) => {
+            if (!imageSrc) {
+                showMessage('Please load an image first.');
+                return;
+            }
+
+            const rect = analysisCanvas.getBoundingClientRect();
+            // Calculate coordinates relative to the original image dimensions
+            const x = (event.clientX - rect.left) * (analysisCanvas.width / rect.width);
+            const y = (event.clientY - rect.top) * (analysisCanvas.height / rect.height);
+
+            switch (currentTool) {
+                case 'scale_point1':
+                    scalePoints = [{ x, y }];
+                    currentTool = 'scale_point2';
+                    showMessage('Click the second point to define the scale.');
+                    break;
+                case 'scale_point2':
+                    scalePoints.push({ x, y });
+                    calculatePixelsPerUnit(scalePoints);
+                    currentTool = 'none';
+                    break;
+                case 'aim_point':
+                    if (!activeGroupId) {
+                        showMessage('Please create or select a group first.');
+                        return;
+                    }
+                    const activeGroupIndexPoA = groups.findIndex(g => g.id === activeGroupId);
+                    if (activeGroupIndexPoA !== -1) {
+                        groups = groups.map((group, index) => {
+                            if (index === activeGroupIndexPoA) {
+                                return {
+                                    ...group,
+                                    pointOfAim: { x, y }
+                                };
+                            }
+                            return group;
+                        });
+                    }
+                    showMessage(`Point of Aim set for Group ${groups.find(g => g.id === activeGroupId)?.name || activeGroupId}.`);
+                    currentTool = 'none';
+                    break;
+                case 'impact_point':
+                    if (!activeGroupId) {
+                        showMessage('Please create or select a group first.');
+                        return;
+                    }
+                    const activeGroupIndexPoI = groups.findIndex(g => g.id === activeGroupId);
+                    if (activeGroupIndexPoI !== -1) {
+                        // Create a new groups array with the updated group, and a new pointsOfImpact array
+                        groups = groups.map((group, index) => {
+                            if (index === activeGroupIndexPoI) {
+                                return {
+                                    ...group,
+                                    pointsOfImpact: [...group.pointsOfImpact, { x, y }]
+                                };
+                            }
+                            return group;
+                        });
+                    }
+                    showMessage(`Point of Impact added to Group ${groups.find(g => g.id === activeGroupId)?.name || activeGroupId}. Click more or select another tool.`);
+                    break;
+                default:
+                    break;
+            }
+            drawImageOnCanvas();
+            updateButtonStates();
+            updateStatistics();
+        });
+
+        // Statistics and Calculations
+        function calculatePixelsPerUnit(points) {
+            if (points.length === 2) {
+                const p1 = points[0];
+                const p2 = points[1];
+                const pixelDistance = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+                const realWorldDistance = unit === 'imperial' ? 1 : 10;
+                pixelsPerUnit = pixelDistance / realWorldDistance;
+                showMessage(`Scale defined: ${pixelDistance.toFixed(2)} pixels = ${realWorldDistance} ${unit === 'imperial' ? 'inch' : 'millimeters'}.`);
+            }
+        }
+
+        function getAllCombinedImpactPoints() {
+            const combinedPoints = [];
+            groups.forEach(group => {
+                if (group.pointOfAim && group.pointsOfImpact.length > 0) {
+                    const poa = group.pointOfAim;
+                    group.pointsOfImpact.forEach(poi => {
+                        combinedPoints.push({
+                            x: poi.x - poa.x,
+                            y: poi.y - poa.y
+                        });
+                    });
+                }
+            });
+            return combinedPoints;
+        }
+
+        function updateStatistics() {
+            if (!pixelsPerUnit) {
+                statsOutput.textContent = "Please define the image scale first.";
+                return;
+            }
+
+            const combinedImpactPoints = getAllCombinedImpactPoints();
+
+            if (combinedImpactPoints.length === 0) {
+                statsOutput.textContent = "No points of impact to calculate statistics.";
+                return;
+            }
+
+            const unitName = unit === 'imperial' ? 'inch' : 'mm';
+
+            const realWorldPoints = combinedImpactPoints.map(p => ({
+                x: p.x / pixelsPerUnit,
+                y: p.y / pixelsPerUnit
+            }));
+
+            let pointDistancesFromAim = [];
+            if (Array.isArray(realWorldPoints)) {
+                pointDistancesFromAim = realWorldPoints.map(p => ({
+                    x: p.x.toFixed(3),
+                    y: p.y.toFixed(3)
+                }));
+            }
+
+            const minX = Math.min(...realWorldPoints.map(p => p.x));
+            const maxX = Math.max(...realWorldPoints.map(p => p.x));
+            const horizontalSpread = (maxX - minX).toFixed(3);
+
+            const minY = Math.min(...realWorldPoints.map(p => p.y));
+            const maxY = Math.max(...realWorldPoints.map(p => p.y));
+            const verticalSpread = (maxY - minY).toFixed(3);
+
+            const sumX = realWorldPoints.reduce((acc, p) => acc + p.x, 0);
+            const sumY = realWorldPoints.reduce((acc, p) => acc + p.y, 0);
+            const mpiX = sumX / realWorldPoints.length;
+            const mpiY = sumY / realWorldPoints.length;
+
+            let totalRadius = 0;
+            realWorldPoints.forEach(p => {
+                const distance = Math.sqrt(
+                    Math.pow(p.x - mpiX, 2) +
+                    Math.pow(p.y - mpiY, 2)
+                );
+                totalRadius += distance;
+            });
+            const meanRadius = (totalRadius / realWorldPoints.length).toFixed(3);
+
+            let extremeSpread = 0;
+            if (realWorldPoints.length > 1) {
+                for (let i = 0; i < realWorldPoints.length; i++) {
+                    for (let j = i + 1; j < realWorldPoints.length; j++) {
+                        const dist = Math.sqrt(
+                            Math.pow(realWorldPoints[i].x - realWorldPoints[j].x, 2) +
+                            Math.pow(realWorldPoints[i].y - realWorldPoints[j].y, 2)
+                        );
+                        if (dist > extremeSpread) {
+                            extremeSpread = dist;
+                        }
+                    }
+                }
+            }
+            extremeSpread = extremeSpread.toFixed(3);
+
+            let output = `Combined Group Statistics (${unitName})\n\n`;
+
+            output += `Horizontal Spread: ${horizontalSpread} ${unitName}\n`;
+            output += `Vertical Spread: ${verticalSpread} ${unitName}\n`;
+            output += `Extreme Spread: ${extremeSpread} ${unitName}\n`;
+            output += `Mean Radius: ${meanRadius} ${unitName}\n\n`;
+
+            output += `Individual Points of Impact (Relative to POA):\n`;
+            pointDistancesFromAim.forEach((p, index) => {
+                output += `  ${index + 1},${p.x},${p.y}\n`;
+            });
+            
+            statsOutput.textContent = output;
+        }
+
+        // Initial state update on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateButtonStates();
+            renderGroupSelect(); // Initial rendering of group select
+            updateStatistics();
+        });
+    </script>
+</body>
+</html>
 
